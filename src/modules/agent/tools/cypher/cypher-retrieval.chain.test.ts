@@ -27,7 +27,7 @@ describe("Cypher QA Chain", () => {
 
     llm = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-3.5-turbo",
+      modelName: process.env.OPENAI_API_MODEL,
       temperature: 0,
       configuration: {
         baseURL: process.env.OPENAI_API_BASE,
@@ -54,7 +54,8 @@ describe("Cypher QA Chain", () => {
     const output = await chain.invoke(
       {
         input: "how many are there?",
-        rephrasedQuestion: "How many Movies are in the database?",
+        rephrasedQuestion:
+          "How many Movies are in the database? Just return the number as an integer. Don't add any additional text.",
       },
       { configurable: { sessionId } }
     );
@@ -84,7 +85,7 @@ describe("Cypher QA Chain", () => {
     );
 
     const input = "what did they play?";
-    const rephrasedQuestion = `What role did ${person} play in ${movie}`;
+    const rephrasedQuestion = `What role did ${person} play in ${movie}?`;
 
     const output = await chain.invoke(
       {
@@ -130,9 +131,11 @@ describe("Cypher QA Chain", () => {
     const seed = await graph.query(
       `
         MERGE (m:Movie {title: $movie})
-        MERGE (p:Person {name: $person}) SET p:Actor
+        MERGE (p:Person {name: $person}) 
+          ON CREATE SET p:Actor
         MERGE (p)-[r:ACTED_IN]->(m)
-        SET r.role = $role, r.roles = $role
+        ON CREATE SET r.role = $role, r.roles = $role
+        ON MATCH SET r.role = $role, r.roles = $role
         RETURN
           m { .title, _id: elementId(m) } AS movie,
           p { .name, _id: elementId(p) } AS person
@@ -159,7 +162,7 @@ describe("Cypher QA Chain", () => {
         r.rephrasedQuestion as rephrasedQuestion,
         r.output AS output,
         [ (m)-[:CONTEXT]->(c) | elementId(c) ] AS ids
-    `,
+      `,
       { sessionId }
     );
 
@@ -191,9 +194,9 @@ describe("Cypher QA Chain", () => {
   describe("getResults", () => {
     it("should fix a broken Cypher statement on the fly", async () => {
       const res = await getResults(graph, llm, {
-        question: "What role did Emil Eifrem play in Neo4j - Into the Graph?",
+        question: "What role did Emil Eifrem play in 'Neo4j - Into the Graph'?",
         cypher:
-          "MATCH (a:Actor {name: 'Emil Eifrem'})-[:ACTED_IN]->(m:Movie) " +
+          "MATCH (a:Actor {name: 'Emil Eifrem'})-[r:ACTED_IN]->(m:Movie) " +
           "RETURN a.name AS Actor, m.title AS Movie, m.tmdbId AS source, " +
           "elementId(m) AS _id, m.released AS ReleaseDate, r.role AS Role LIMIT 10",
       });

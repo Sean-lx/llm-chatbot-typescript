@@ -26,9 +26,52 @@ export type CypherEvaluationChainOutput = {
 export default async function initCypherEvaluationChain(
   llm: BaseLanguageModel
 ) {
-  // TODO: Create prompt template
-  // const prompt = PromptTemplate.fromTemplate(...)
-  // TODO: Return runnable sequence
-  // return RunnableSequence.from<input type, output type>(....)
+  // Prompt template
+  const prompt = PromptTemplate.fromTemplate(`
+    You are an expert Neo4j Developer evaluating a Cypher statement written by an AI.
+
+    Check that the cypher statement provided below against the database schema to check that
+    the statement will answer the user's question.
+    Fix the cypher statement according to the errors infomation provided.
+
+    Respond with a JSON object with "cypher" and "errors" keys.
+      * "cypher" - the corrected cypher statement
+      * "errors" - A list of uncorrectable errors.  For example, if a label,
+          relationship type or property does not exist in the schema.
+          Provide a hint to the correct element where possible.
+
+    Schema:
+    {schema}
+
+    Question:
+    {question}
+
+    Cypher Statement:
+    {cypher}
+
+    {errors}
+  `);
+
+  return RunnableSequence.from<
+    CypherEvaluationChainInput,
+    CypherEvaluationChainOutput
+  >([
+    RunnablePassthrough.assign({
+      // Convert errors into an LLM-friendly list
+      errors: ({ errors }) => {
+        if (
+          errors === undefined ||
+          (Array.isArray(errors) && errors.length === 0)
+        ) {
+          return "";
+        }
+
+        return `[${Array.isArray(errors) ? errors?.join(",") : errors}]`;
+      },
+    }),
+    prompt,
+    llm,
+    new JsonOutputParser<CypherEvaluationChainOutput>(),
+  ]);
 }
 // end::function[]

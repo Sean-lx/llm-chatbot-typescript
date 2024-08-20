@@ -20,7 +20,7 @@ describe("Rephrase Question Chain", () => {
 
     llm = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-3.5-turbo",
+      modelName: process.env.OPENAI_API_MODEL,
       temperature: 0,
       configuration: {
         baseURL: process.env.OPENAI_API_BASE,

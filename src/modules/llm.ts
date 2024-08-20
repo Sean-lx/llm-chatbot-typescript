@@ -2,7 +2,7 @@ import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 
 export const llm = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY,
-  modelName: "gpt-4",
+  modelName: process.env.OPENAI_API_MODEL,
   temperature: 0,
 });
 

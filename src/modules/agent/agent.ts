@@ -11,6 +11,7 @@ import { RunnablePassthrough } from "@langchain/core/runnables";
 import { getHistory } from "./history";
 import initTools from "./tools";
 import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { MessagesPlaceholder } from "@langchain/core/prompts";
 
 // tag::function[]
 export default async function initAgent(
@@ -18,17 +19,64 @@ export default async function initAgent(
   embeddings: Embeddings,
   graph: Neo4jGraph
 ) {
-  // TODO: Initiate tools
-  // const tools = ...
-  // TODO: Pull the prompt from the hub
-  // const prompt = ...
-  // TODO: Create an agent
-  // const agent = ...
-  // TODO: Create an agent executor
-  // const executor = ...
-  // TODO: Create a rephrase question chain
-  // const rephraseQuestionChain = ...
-  // TODO: Return a runnable passthrough
-  // return ...
+  const tools = await initTools(llm, embeddings, graph);
+
+  const prompt = ChatPromptTemplate.fromMessages<{
+    chat_history: string;
+    agent_scratchpad: string;
+    rephrasedQuestion: string;
+  }>([
+    [
+      "system",
+      `
+    You are Ebert, a movie recommendation chatbot.
+    Your goal is to provide movie lovers with excellent recommendations
+    backed by data from Neo4j, the world's leading graph database.
+  
+    Respond to any questions that don't relate to movies, actors or directors
+    with a joke about parrots, before asking them to ask another question
+    related to the movie industry.
+    `,
+    ],
+    ["human", "{rephrasedQuestion}"],
+    new MessagesPlaceholder({ variableName: "chat_history", optional: true }),
+    new MessagesPlaceholder("agent_scratchpad"),
+  ]);
+
+  const agent = await createOpenAIFunctionsAgent({
+    llm,
+    tools,
+    prompt,
+  });
+
+  const executor = new AgentExecutor({
+    agent,
+    tools,
+    verbose: true, // Verbose output logs the agents _thinking_
+  });
+
+  const rephraseQuestionChain = await initRephraseChain(llm);
+
+  return (
+    RunnablePassthrough.assign<{ input: string; sessionId: string }, any>({
+      // Get Message History
+      history: async (_input, options) => {
+        const history = await getHistory(
+          options?.config.configurable.sessionId
+        );
+
+        return history;
+      },
+    })
+      .assign({
+        // Use History to rephrase the question
+        rephrasedQuestion: (input: RephraseQuestionInput, config: any) =>
+          rephraseQuestionChain.invoke(input, config),
+      })
+
+      // Pass to the executor
+      .pipe(executor)
+      .pick("output")
+  );
 }
 // end::function[]

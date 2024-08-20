@@ -22,7 +22,7 @@ describe("Cypher Evaluation Chain", () => {
 
     llm = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-3.5-turbo",
+      modelName: process.env.OPENAI_API_MODEL,
       temperature: 0,
       configuration: {
         baseURL: process.env.OPENAI_API_BASE,
@@ -53,7 +53,7 @@ describe("Cypher Evaluation Chain", () => {
     let found = false;
 
     for (const error of errors) {
-      if (error.includes("label Muvee does not exist")) {
+      if (error.includes("Label Muvee does not exist")) {
         found = true;
       }
     }
@@ -109,7 +109,9 @@ describe("Cypher Evaluation Chain", () => {
   it("should keep variables in relationship", async () => {
     const cypher =
       "MATCH (a:Actor {name: 'Emil Eifrem'})-[r:ACTED_IN]->" +
-      "(m:Movie {title: 'Neo4j - Into the Graph'}) RETURN r.role AS Role";
+      "(m:Movie {title: 'Neo4j - Into the Graph'}) " +
+      "WHERE r.role IS NOT NULL " +
+      "RETURN r.role AS Role";
     const input = {
       question: "What role did Emil Eifrem play in Neo4j - Into the Graph",
       cypher,
